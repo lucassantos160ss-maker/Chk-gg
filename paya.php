@@ -13,8 +13,8 @@ if (!isset($_SESSION['user_key'])) {
 // FIM DA TRAVA - CÓDIGO ORIGINAL CONTINUA ABAIXO
 // ============================================================
 
-error_reporting(0);
-ini_set('display_errors', 0); 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 date_default_timezone_set('Asia/Jakarta');
 
 // ============================================================
