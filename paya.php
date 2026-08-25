@@ -20,7 +20,7 @@ date_default_timezone_set('Asia/Jakarta');
 // ============================================================
 // CONFIGURAÇÃO DE PROXY
 // ============================================================
-$proxyString = "http://d0a3ee0ffead3bf863a8:8873f5b2a8a4f09a@gw.dataimpulse.com:823";
+$proxyString = "http://nwzfyehi-rotate:ifxqyz4hazzy@p.webshare.io:80";
 $proxyParts = parse_url($proxyString);
 $proxyHost = $proxyParts['host'];
 $proxyPort = $proxyParts['port'];
