@@ -1,67 +1,106 @@
 <?php
-// ============================================================
-// TRAVA DE SEGURANÇA (WOLF_SECURITY)
-// ============================================================
-session_start();
+error_reporting(0);
+date_default_timezone_set('Asia/Jakarta');
 
-if (!isset($_SESSION['user_key'])) {
-    http_response_code(403);
-    die("Reprovada - ACESSO NÃO AUTORIZADO");
+// Captura a lista enviada pelo painel
+$lista = $_GET['lista'] ?? null;
+$cards = [];
+
+if (!empty($lista)) {
+    $lista = trim($lista);
+    $lista = str_replace([" ", ":", ";", ",", "=>", "-", "/", "|||", "\r", "\n"], "|", $lista);
+    $lista = preg_replace('/\|+/', '|', $lista);
+    
+    $tmp = explode("|", $lista);
+    for ($i = 0; $i < count($tmp); $i += 4) {
+        if (isset($tmp[$i + 3])) {
+            $cc = trim($tmp[$i]);
+            $mes = trim($tmp[$i+1]);
+            $ano = trim($tmp[$i+2]);
+            $cvv = trim($tmp[$i+3]);
+            if (strlen($cc) >= 15 && strlen($cvv) >= 3) {
+                $cards[] = "$cc|$mes|$ano|$cvv";
+            }
+        }
+    }
+    
+    if (!empty($cards)) {
+        file_put_contents('db.txt', implode("\n", $cards) . "\n");
+    }
 }
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-date_default_timezone_set('America/Sao_Paulo');
-
-// Funções de Apoio
-function multiexplode($string) {
-    $delimiters = ["|", ";", ":", "/", "»", "«", ">", "<", " "];
-    $one = str_replace($delimiters, $delimiters[0], $string);
-    return explode($delimiters[0], $one);
+if (empty($cards) && file_exists('db.txt')) {
+    $cards = file('db.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 }
 
-// Captura da Lista
-$lista = $_GET['lista'] ?? '';
-if (empty($lista)) exit("AGUARDANDO_CARGA...");
+if (empty($cards)) {
+    die();
+}
 
-$dados = multiexplode($lista);
-$cc = trim($dados[0] ?? '');
-$mes = trim($dados[1] ?? '');
-$ano = trim($dados[2] ?? '');
-$cvv = trim($dados[3] ?? '');
+$current_card = array_shift($cards);
+$separa = explode("|", $current_card);
+$cc = $separa[0];
+$mes = $separa[1];
+$ano = $separa[2];
+$cvv = $separa[3];
 
-// Simulação de informações de BIN aleatórias/genéricas baseadas no cartão
-$bancos = ["NU PAGAMENTOS S.A.", "MERCADO PAGO", "BANCO BRADESCO S.A.", "BANCO ITAU S.A.", "CAIXA ECONOMICA FEDERAL"];
-$paises = ["BRA", "USA", "CAN"];
-$niveis = ["GOLD", "PLATINUM", "STANDARD", "BLACK"];
-$bandeiras = ["VISA", "MASTERCARD"];
+if (!empty($cards)) {
+    file_put_contents('db.txt', implode("\n", $cards) . "\n");
+} else {
+    if (file_exists('db.txt')) unlink('db.txt');
+}
 
-$bandeira = (strpos($cc, '4') === 0) ? "VISA" : "MASTERCARD";
-$banco_aleatorio = $bancos[array_rand($bancos)];
-$pais_aleatorio = $paises[array_rand($paises)];
-$nivel_aleatorio = $niveis[array_rand($niveis)];
+// Funções de Apoio para BIN
+function GetStr($string, $start, $end) {
+    $str = explode($start, $string);
+    if (!isset($str[1])) return '';
+    $str = explode($end, $str[1]);
+    return $str[0];
+}
 
-$bin_info = strtoupper("$bandeira $nivel_aleatorio $banco_aleatorio $pais_aleatorio CREDIT");
+$bin_info = "N/A";
+$bin_number = substr($cc, 0, 6);
 
-// Simulação de resultado aleatório (Ex: 30% de chance de aprovar, 70% reprovar)
+if (file_exists('bins.json')) {
+    $json_str = file_get_contents('bins.json');
+    $bins = json_decode($json_str, true);
+    if (isset($bins[$bin_number])) {
+        $a = json_encode($bins[$bin_number]);
+        $bandeira = GetStr($a, 'bandeira":"', '"');
+        $nivel    = GetStr($a, 'level":"', '"');
+        $bank     = GetStr($a, 'banco":"', '"');
+        $pais     = GetStr($a, 'pais":"', '"');
+        $bin_info = trim("$bandeira $nivel $bank $pais");
+    }
+} 
+if ($bin_info == "N/A" && file_exists('bins.csv')) {
+    $contents = file_get_contents('bins.csv');
+    $pattern = preg_quote($bin_number, '/');
+    $pattern = "/^.*$pattern.*\$/m";
+    if (preg_match_all($pattern, $contents, $matches)) {
+        $encontrada = implode("\n", $matches[0]);
+        $pieces = explode(";", $encontrada);
+        $bin_info = trim("$pieces[1] $pieces[2] $pieces[3] $pieces[4] $pieces[5]");
+    }
+}
+
+// --- SIMULAÇÃO ALEATÓRIA DE RESULTADOS ---
 $sorteio = rand(1, 100);
-$is_aprovada = ($sorteio <= 30); // 30% aprovadas
+$is_aprovada = ($sorteio <= 35); // 35% de chance de aprovação simulada
 
 if ($is_aprovada) {
-    $status_code = "Y";
-    echo "Aprovada ✅ " . $cc . "|" . $mes . "|" . $ano . "|" . $cvv . " ➔ [BIN: " . $bin_info . "] ➔ STATUS: [" . $status_code . "] - APROVADO COM SUCESSO ➔ @wzzin_center<br>";
+    $es = "Aproved";
+    $msg_output = "CHARGED 1$ SUCCESSFULLY 🟢"; 
+    $code = "CHARGED 1$ SUCCESSFULLY 🟢";
+    echo '<span class="text-success">Aproved</span> ✅<br>'.$current_card.'<br>['.$bin_info.']<br>'.$msg_output.'<br>@wzzin_santos';
 } else {
-    $msgs_erro = [
-        "Transacao Recusada pelo emissor",
-        "Saldo Insuficiente",
-        "CVV Invalido",
-        "Cartao Vencido",
-        "Bloqueio de Seguranca"
-    ];
-    $msg_erro = $msgs_erro[array_rand($msgs_erro)];
-    echo "Reprovada ❌ " . $cc . "|" . $mes . "|" . $ano . "|" . $cvv . " ➔ [BIN: " . $bin_info . "] ➔ [" . $msg_erro . "] ➔ @wzzin_center<br>";
+    $es = "Reproved";
+    $erros_possiveis = ["Transaction declined [ INSUFFICIENT_FUNDS ]", "Transaction declined [ ISSUER_DECLINE ]", "Transaction declined [ INVALID_SECURITY_CODE ]"];
+    $msg_output = $erros_possiveis[array_rand($erros_possiveis)];
+    $code = $msg_output;
+    echo '<span class="text-danger">Reprovada</span><br>'.$current_card.'<br>['.$bin_info.']<br>'.$msg_output.'<br>@wzzin_santos';
 }
 
-// Pequeno delay simulado para dar o efeito visual na tela
-usleep(300000); // 0.3 segundos
+ob_flush();
+sleep(2); // Pequeno delay simulado
 ?>
